@@ -139,8 +139,6 @@ class PauseMenu:
         return False       
 
 
-
-
 class Game(arcade.Window):
     def __init__(self):
         super().__init__(width=500, height=500, title="Super Snake 🐍 v1")
@@ -158,6 +156,7 @@ class Game(arcade.Window):
         self.pause_menu = PauseMenu()
         
         self.game_over = False
+        self.just_ate = False  # پرچم برای تشخیص خوردن سیب
              
     def on_draw(self):
         self.clear()          # پاک کردن صفحه
@@ -183,7 +182,8 @@ class Game(arcade.Window):
             self.snake.move("R")
             
     def on_update(self, delta_time):
-        if not self.pause_menu.paused and not self.game_over:
+        if not self.pause_menu.paused and not self.game_over: 
+            old_body = self.snake.body.copy()      
             self.snake.update(delta_time)
             # بررسی برخورد با دیوار
             if (self.snake.center_x < 15 or self.snake.center_x > self.width or
@@ -197,7 +197,28 @@ class Game(arcade.Window):
                 # مکان جدید سیب
                 self.food.respawn()
                 self.snake.eat()
-                print(self.snake.score)
+                print("score: " ,self.snake.score)
+                self.just_ate = True  # فعال کردن پرچم خوردن سیب
+            else:
+                self.just_ate = False  # غیرفعال کردن پرچم اگه سیب نخورده
+            
+            
+            print("just_ate: " ,self.just_ate)    
+            # بررسی برخورد با بدنه مار، فقط اگه تازه سیب نخورده
+            if not self.just_ate and len(old_body) > 3:
+                print("just_ate: " ,self.just_ate) 
+                print("len(old_body): " ,len(old_body))
+                 
+                collision_tolerance = self.snake.width * 0.8  # کاهش حساسیت برخورد
+                for segment in old_body[:-3]:  # بدون 3 بخش آخر
+                    dx = abs(self.snake.center_x - segment["x"])
+                    dy = abs(self.snake.center_y - segment["y"])
+                    if dx < collision_tolerance and dy < collision_tolerance:
+                        self.game_over = True
+                        print(f"Game Over: Snake hit itself! Head: ({self.snake.center_x}, {self.snake.center_y}), Segment: ({segment['x']}, {segment['y']})")
+                        break
+                
+            
                 
   
 if __name__ == "__main__":
