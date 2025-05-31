@@ -24,17 +24,18 @@ class Snake(arcade.Sprite):
         super().__init__()
         self.width = 20
         self.height = 20
-        self.center_x = game.width // 2  # برای این از // استفاده کردیم چون جواب عدد صحیح در بیاد و اعشاری نشه چون اگه ابعاد صفحه فرد باشه عدد اعشاری میشه
-        self.center_y = game.height // 2
+        self.center_x = (game.width // self.width) * self.width // 2  # شروع روی شبکه
+        self.center_y = (game.height // self.height) * self.height // 2
         self.color1 = arcade.color.JUNGLE_GREEN
         self.color2 = arcade.color.RED_DEVIL
         self.length = 1  # طول اولیه مار
         self.change_x = 0
         self.change_y = 0
         self.body = []  # لیستی برای ذخیره قطعات بدنه مار
-        self.speed = 2  # سرعت حرکت (برابر با اندازه هر بخش)
+        self.speed = self.width  # سرعت برابر با اندازه یک خانه
         self.score = 0
-        self.stripe_length = 6  # تعداد بخش‌ها برای هر راه (برای فاصله بیشتر)
+        self.stripe_length = 1  # تعداد بخش‌ها برای هر راه (برای فاصله بیشتر)
+        self.just_ate = False  # پرچم برای تأخیر بعد از خوردن
         
     def draw(self):
        # رسم بدنه مار
@@ -57,28 +58,24 @@ class Snake(arcade.Sprite):
             elif stripe_index % 2 == 1 and self.score:  # رنگ دوم برای فردها
                 arcade.draw_rect_filled(rect=rect, color=self.color2)
         
-        # رسم سر مار
-        rect = arcade.Rect(
-            left=self.center_x - self.width // 2,
-            right=self.center_x + self.width // 2,
-            bottom=self.center_y - self.height // 2,
-            top=self.center_y + self.height // 2,
-            width=self.width,
-            height=self.height,
-            x=self.center_x - self.width // 2,
-            y=self.center_y - self.height // 2
+        # رسم سر مار (گرد)
+        arcade.draw_circle_filled(
+            center_x=self.center_x-10,
+            center_y=self.center_y-10,
+            radius=self.width / 2,
+            color=arcade.color.DARK_GREEN
         )
-        arcade.draw_rect_filled(rect=rect, color=arcade.color.DARK_GREEN)
            
-    def update(self ,delta_time):
-        # اضافه کردن موقعیت فعلی سر به بدنه
-        self.body.append({"x": self.center_x, "y": self.center_y})
+    def update(self):
+        self.body.append({"x": self.center_x, "y": self.center_y})  # اضافه کردن موقعیت فعلی سر به بدنه
         # حذف آخرین قطعه اگر طول از حد مجاز بیشتر باشد
         if len(self.body) > self.length:
             self.body.pop(0)
-       # delta_time به‌روزرسانی موقعیت سر با سرعت 2 و 
-        self.center_x += self.change_x * delta_time * 60
-        self.center_y += self.change_y * delta_time * 60
+        # به‌روزرسانی موقعیت سر
+        self.center_x += self.change_x
+        self.center_y += self.change_y
+        self.just_ate = False  # ریست پرچم بعد از حرکت
+
         
     def move(self ,direction):
         if direction == "L":
@@ -96,6 +93,7 @@ class Snake(arcade.Sprite):
     
     def eat(self):
         self.score += 1
+        self.just_ate = True  # تنظیم پرچم بعد از خوردن
     
     def t_score(self ,height):
         arcade.draw_text(f"Score: {self.score}", 10, height - 30, arcade.color.BLACK, 16)      
@@ -156,7 +154,9 @@ class Game(arcade.Window):
         self.pause_menu = PauseMenu()
         
         self.game_over = False
-        self.just_ate = False  # پرچم برای تشخیص خوردن سیب
+        
+        self.move_timer = 0  # تایمر برای کنترل زمان حرکت
+        self.move_interval = 0.1  # بازه زمانی بین حرکت‌ها (۰٫۱ ثانیه)
              
     def on_draw(self):
         self.clear()          # پاک کردن صفحه
@@ -183,40 +183,38 @@ class Game(arcade.Window):
             
     def on_update(self, delta_time):
         if not self.pause_menu.paused and not self.game_over: 
-            old_body = self.snake.body.copy()      
-            self.snake.update(delta_time)
-            # بررسی برخورد با دیوار
-            if (self.snake.center_x < 15 or self.snake.center_x > self.width or
-                self.snake.center_y < 15 or self.snake.center_y > self.height):
-                self.game_over = True
-                print("Game Over: Hit the wall!")
-            # بررسی برخورد با سیب
-            if arcade.check_for_collision(self.snake, self.food):
-                self.snake.length += 5
-                print(f"Snake ate apple! Length: {self.snake.length}, Snake pos: ({self.snake.center_x}, {self.snake.center_y}), Apple pos: ({self.food.center_x}, {self.food.center_y})")
-                # مکان جدید سیب
-                self.food.respawn()
-                self.snake.eat()
-                print("score: " ,self.snake.score)
-                self.just_ate = True  # فعال کردن پرچم خوردن سیب
-            else:
-                self.just_ate = False  # غیرفعال کردن پرچم اگه سیب نخورده
+            self.move_timer += delta_time  # افزایش تایمر با زمان فریم
+            if self.move_timer >= self.move_interval:  # اگه تایمر به بازه رسید
+                self.snake.update()  # به‌روزرسانی موقعیت مار
+                self.move_timer = 0  # ریست تایمر      
+                
+                # بررسی برخورد با دیوار
+                if (self.snake.center_x < 15 or self.snake.center_x > self.width or
+                    self.snake.center_y < 15 or self.snake.center_y > self.height):
+                    self.game_over = True
+                    print("Game Over: Hit the wall!")
+                # بررسی برخورد با سیب
+                if not self.snake.just_ate and arcade.check_for_collision(self.snake, self.food):
+                    self.snake.length += 0.5
+                    print(f"Snake ate apple! Length: {self.snake.length}, Snake pos: ({self.snake.center_x}, {self.snake.center_y}), Apple pos: ({self.food.center_x}, {self.food.center_y})")
+                    # مکان جدید سیب
+                    self.food.respawn()
+                    self.snake.eat()
+                    print("score: " ,self.snake.score)
+                
+    
+                print("snake.just_ate: " ,self.snake.just_ate)   
+                # بررسی برخورد با خود
+                if not self.snake.just_ate:
+                    for segment in self.snake.body[:-1]:
+                        if abs(self.snake.center_x - segment["x"]) < self.snake.width * 0.8 and \
+                           abs(self.snake.center_y - segment["y"]) < self.snake.height * 0.8:
+                            self.game_over = True
+                            print(f"Game Over: Snake hit itself! Head: ({self.snake.center_x}, {self.snake.center_y}), "
+                                  f"Segment: ({segment['x']}, {segment['y']})")
+                            print("Body segments:", self.snake.body)
+                            break
             
-            
-            print("just_ate: " ,self.just_ate)    
-            # بررسی برخورد با بدنه مار، فقط اگه تازه سیب نخورده
-            if not self.just_ate and len(old_body) > 3:
-                print("just_ate: " ,self.just_ate) 
-                print("len(old_body): " ,len(old_body))
-                 
-                collision_tolerance = self.snake.width * 0.8  # کاهش حساسیت برخورد
-                for segment in old_body[:-3]:  # بدون 3 بخش آخر
-                    dx = abs(self.snake.center_x - segment["x"])
-                    dy = abs(self.snake.center_y - segment["y"])
-                    if dx < collision_tolerance and dy < collision_tolerance:
-                        self.game_over = True
-                        print(f"Game Over: Snake hit itself! Head: ({self.snake.center_x}, {self.snake.center_y}), Segment: ({segment['x']}, {segment['y']})")
-                        break
                 
             
                 
