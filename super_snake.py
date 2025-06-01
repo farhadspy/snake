@@ -99,7 +99,7 @@ class Snake(arcade.Sprite):
         arcade.draw_text(f"Score: {self.score}", 10, height - 30, arcade.color.BLACK, 16)      
         
         
-class PauseMenu:
+class PauseMenu():
     def __init__(self):
         self.paused = False
         self.show_pause_menu = False
@@ -217,6 +217,7 @@ class Game(arcade.Window):
             
                 
             
+        
                 
   
 if __name__ == "__main__":
